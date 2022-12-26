@@ -38,6 +38,11 @@ data <- data %>% select(-c(v1_status, v2_status, v3_status, v4_status, v5_status
 # impute action in each user's first event with "watch"
 data$action <- ifelse(data$event_id == 0, "watch", data$action)
 
+# impute NA in payload_act, collision, is_damaged
+data$payload_act <- as.factor(ifelse(is.na(data$payload_act), 0, data$payload_act))
+data$collision <- ifelse(is.na(data$collision), 0, data$collision)
+data$is_damaged <- ifelse(is.na(data$is_damaged), 0, data$is_damaged)
+
 # impute NA in action with LOCF
 impute_action <- ddply(data[, c("file_name", "event_id", "time", "action")], 
                        ~file_name, na.locf)
@@ -49,6 +54,8 @@ data <- data %>% relocate(c(file_name, event_id, time, action.x, action.y),
 # replace level "end" with "watch" in action
 data$action.y <- ifelse(data$action.y == "end", "watch", data$action.y)
 data <- data %>% select(-action.x)
+data$action.y <- as.factor(data$action.y)
+
 ##### end of section #####
 
 ##### calculate distance between vehicles #####
@@ -166,6 +173,30 @@ data$dist_v5_h10 <- sqrt((data$v5_x - data$h10_x)^2 + (data$v5_y - data$h10_y)^2
 ##### end of section #####
 
 ##### add new columns to represent the distance between vehicles and its target #####
+
+dist_vehicle_target <- lapply(seq(nrow(data)), function(row_id) {
+  return(data.frame(cbind(
+    dist_v1_target = ifelse(data[row_id,]$v1_target == -1, 0, 
+                            eval(parse(text = paste0("data[", row_id, ",]$dist_v1_t", tolower(data[row_id,]$v1_target))))),
+    dist_v2_target = ifelse(data[row_id,]$v2_target == -1, 0, 
+                            eval(parse(text = paste0("data[", row_id, ",]$dist_v2_t", tolower(data[row_id,]$v2_target))))),
+    dist_v3_target = ifelse(data[row_id,]$v3_target == -1, 0, 
+                            eval(parse(text = paste0("data[", row_id, ",]$dist_v3_t", tolower(data[row_id,]$v3_target))))),
+    dist_v4_target = ifelse(data[row_id,]$v4_target == -1, 0, 
+                            eval(parse(text = paste0("data[", row_id, ",]$dist_v4_t", tolower(data[row_id,]$v4_target))))),
+    dist_v5_target = ifelse(data[row_id,]$v5_target == -1, 0, 
+                            eval(parse(text = paste0("data[", row_id, ",]$dist_v5_t", tolower(data[row_id,]$v5_target)))))
+    )))
+  # data[i]$dist_v1_target <- eval(parse(text = paste0("data[i]$dist_v1_t", tolower(data[1]$v1_target))))
+  # daat[i]$dist_v2_target <- eval(parse(text = paste0("data[i]$dist_v2_t", tolower(data[1]$v2_target))))
+  # daat[i]$dist_v3_target <- eval(parse(text = paste0("data[i]$dist_v3_t", tolower(data[1]$v3_target))))
+  # daat[i]$dist_v4_target <- eval(parse(text = paste0("data[i]$dist_v4_t", tolower(data[1]$v4_target))))
+  # daat[i]$dist_v5_target <- eval(parse(text = paste0("data[i]$dist_v5_t", tolower(data[1]$v5_target))))
+})
+
+dt_dist_vehicle_target <- rbindlist(dist_vehicle_target, use.names = T)
+data <- cbind(data, dt_dist_vehicle_target)
+
 ##### end of section #####
 
 data <- data %>% select(-c(v1_x, v1_y, v2_x, v2_y, v3_x, v3_y, v4_x, v4_y, v5_x, v5_y,
@@ -181,6 +212,7 @@ data$min_VH_dist <- apply(data[, 63:112], 1, min)
 
 
 data <- data %>% select(-c(is_engage_payload, n_correct, n_incorrect,
+                           v1_target, v2_target, v3_target, v4_target, v5_target,
                            dist_v1_v2, dist_v1_v3, dist_v1_v4, dist_v1_v5, dist_v2_v3, dist_v2_v4, dist_v2_v5,
                            dist_v3_v4, dist_v3_v5, dist_v4_v5))
 ##### train CART #####
@@ -226,4 +258,20 @@ library(Metrics)
 round(accuracy(as.factor(data$action.y), 
                predicted = predict(rpart_model, data, type = "class",)), 4)
 cbind(as.factor(data[1:100,]$action.y), predict(rpart_model, data[1:100,], type = "class"))
+
+##### Ranger #####
+library(ranger)
+
+ranger_model <- ranger(action.y ~ . -file_name - event_id - time - weight,
+                       data = data, case.weights = data$weight, importance = "impurity")
+
+ranger_model$prediction.error
+importance(ranger_model)[order(importance(ranger_model), decreasing = T)]
+
+##### randomForest #####
+library(randomForest)
+
+rf_model <- randomForest(action.y ~ . -file_name - event_id - time - weight,
+                         data = data)
+
 
