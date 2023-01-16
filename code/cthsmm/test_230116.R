@@ -1,3 +1,8 @@
+#' ======================
+#' 
+#'  1. only keep data when action has changed
+#'  2. Draw plots to show the 
+#' ======================
 library(dplyr)
 library(data.table)
 library(plyr)
@@ -6,37 +11,43 @@ library(rpart)
 library(rpart.plot)
 library(ykang)
 library(sqldf)
-
+library(ggplot2)
 
 ##### Preprocessing #####
 # load file
-raw_data <- fread("data/data_20221107/TK/TK_HRB_HW.csv")
+tw_raw_data <- fread("data/data_20221107/TW/TW_HRB_HW.csv")
+tk_raw_data <- fread("data/data_20221107/TK/TK_HRB_HW.csv")
+us_raw_data <- fread("data/data_20221107/US/US_HRB_HW.csv")
 
-data <- raw_data %>% select(-V1)
+tw_raw_data$nation <- "tw"
+tk_raw_data$nation <- "tk"
+us_raw_data$nation <- "us"
+
+raw_data <- rbind(tw_raw_data, tk_raw_data, us_raw_data) %>% select(-V1)
 
 # impute "watch" to the rows after which are "applyAutomation"
-for (i in seq(nrow(data))) {
+for (i in seq(nrow(raw_data))) {
   # print(paste0("i = ", as.character(i)))
   # print(data[i, "action"])
   if (i >= 2) {
-    if (data[i-1, "action"] == "applyAutomation") {
+    if (raw_data[i-1, "action"] == "applyAutomation") {
       # print(data[i-1])
-      data[i, "action"] <- "end"
+      raw_data[i, "action"] <- "end"
     }
   }
 }
 
 # replace empty action with NA
-data$action <- ifelse(data$action == "", NA, data$action)
+raw_data$action <- ifelse(raw_data$action == "", NA, raw_data$action)
 
 # summarize and dummy encode vehicle status into two variable, is_vehicle_wait and is_engage_payload
-data$is_vehicle_wait <- ifelse(data$v1_status == 2 | data$v2_status == 2 | 
-                                 data$v3_status == 2 | data$v4_status == 2 | 
-                                 data$v5_status == 2, 1, 0)
-data$is_engage_payload <- ifelse(data$v1_status == 3 | data$v2_status == 3 | 
-                                   data$v3_status == 3 | data$v4_status == 3 | 
-                                   data$v5_status == 3, 1, 0)
-data <- data %>% select(-c(v1_status, v2_status, v3_status, v4_status, v5_status))
+raw_data$is_vehicle_wait <- ifelse(raw_data$v1_status == 2 | raw_data$v2_status == 2 | 
+                                     raw_data$v3_status == 2 | raw_data$v4_status == 2 | 
+                                     raw_data$v5_status == 2, 1, 0)
+raw_data$is_engage_payload <- ifelse(raw_data$v1_status == 3 | raw_data$v2_status == 3 | 
+                                       raw_data$v3_status == 3 | raw_data$v4_status == 3 | 
+                                       raw_data$v5_status == 3, 1, 0)
+data <- raw_data %>% select(-c(v1_status, v2_status, v3_status, v4_status, v5_status))
 
 # impute action in each user's first event with "watch"
 data$action <- ifelse(data$event_id == 0, "watch", data$action)
@@ -58,6 +69,30 @@ data <- data %>% relocate(c(file_name, event_id, time, action.x, action.y),
 data$action.y <- ifelse(data$action.y == "end", "watch", data$action.y)
 data <- data %>% select(-action.x)
 data$action.y <- as.factor(data$action.y)
+
+## Keep data when action has changed and first sample of each user
+duplicate_id <- c(rep(TRUE, 1))
+for (i in 2:nrow(data)) {
+  if (data[i,]$event_id == 0) {
+    duplicate_id[i] <- TRUE
+  } else {
+    if (data[i-1,]$action.y != data[i,]$action.y)  {
+      duplicate_id[i] <- TRUE
+    } else {
+      duplicate_id[i] <- FALSE
+    }
+  }
+}
+
+table(data$action.y)
+# sample size from 26955 to 6263
+data <- data[duplicate_id]
+
+table(data$action.y)
+table(data$nation)
+nation_user_count <- data %>% group_by(nation, file_name) %>% count_()
+
+ggplot(nation_user_count, aes(x = n, color = nation)) + geom_density() + theme(text = element_text(size = 18))
 
 ##### end of section #####
 
@@ -189,7 +224,7 @@ dist_vehicle_target <- lapply(seq(nrow(data)), function(row_id) {
                             eval(parse(text = paste0("data[", row_id, ",]$dist_v4_t", tolower(data[row_id,]$v4_target))))),
     dist_v5_target = ifelse(data[row_id,]$v5_target == -1, 0, 
                             eval(parse(text = paste0("data[", row_id, ",]$dist_v5_t", tolower(data[row_id,]$v5_target)))))
-    )))
+  )))
 })
 
 dt_dist_vehicle_target <- rbindlist(dist_vehicle_target, use.names = T)
@@ -214,7 +249,7 @@ data <- data %>% select(-c(is_engage_payload, n_correct, n_incorrect,
                            v1_target, v2_target, v3_target, v4_target, v5_target,
                            # dist_v1_v2, dist_v1_v3, dist_v1_v4, dist_v1_v5, dist_v2_v3, dist_v2_v4, dist_v2_v5,
                            # dist_v3_v4, dist_v3_v5, dist_v4_v5
-                           ))
+))
 
 ## predict Y in next second with X in current
 data$next_action <- ""
@@ -225,6 +260,10 @@ data <- data %>% select(-c(action.y))
 data$next_action <- as.factor(data$next_action)
 
 
+table(data$nation)
+table(data$nation, data$next_action)
+
+round(prop.table(table(data$nation, data$next_action),margin = 1), 3)
 ##### train CART #####
 # outcome variable: action
 # sample 70% data as training set
@@ -237,77 +276,58 @@ round(prop.table(table(data$next_action)), 3)
 # prop.table(table(data$next_action))
 
 # Calculate case weight by training set
-case_weight <- round(1/round(prop.table(table(data$action)), 3), 2);case_weight
+case_weight <- round(1/round(prop.table(table(data$next_action)), 3), 2);case_weight
 
 data$weight <- 1
 
-data$weight <- ifelse(data$next_action == "replanPath", yes = 13.89, no = data$weight)
-data$weight <- ifelse(data$next_action == "applyAutomation", yes = 66.67, no = data$weight)
-data$weight <- ifelse(data$next_action == "engagePayload", yes = 2.60, no = data$weight)
-data$weight <- ifelse(data$next_action == "watch", yes = 1.89, no = data$weight)
+data$weight <- ifelse(data$next_action == "replanPath", yes = 6.29, no = data$weight)
+data$weight <- ifelse(data$next_action == "applyAutomation", yes = 12.50, no = data$weight)
+data$weight <- ifelse(data$next_action == "engagePayload", yes = 3.80, no = data$weight)
+data$weight <- ifelse(data$next_action == "watch", yes = 2.01, no = data$weight)
 
 
-# Fit rpart
+## Fit rpart
 rpart_model <- rpart(next_action ~ . -file_name - event_id - time - weight,
-                     data = data, control = rpart.control(cp = 0.01), 
-                     weights = data$weight)
-print(rpart_model)
+                     data = data[train_idx,], control = rpart.control(cp = 0.005), 
+                     weights = data[train_idx]$weight)
+rpart_model$cptable # best cp = 0.006653803
+rpart_model_pruned <- prune(rpart_model, cp = 0.006653803)
 
-prp(rpart_model, cex=0.6)
+print(rpart_model_pruned)
 
-prp(rpart_model,         # 模型
-    faclen=0,           # 呈現的變數不要縮寫
-    fallen.leaves=TRUE, # 讓樹枝以垂直方式呈現
-    shadow.col="gray",  # 最下面的節點塗上陰影
-    # number of correct classifications / number of observations in that node
-    extra=2, cex=0.8)  
+prp(rpart_model, cex=0.8)
+prp(rpart_model_pruned, cex=1.2)
+
+## Fit rpart for different country
+# rpart_tw <- rpart_model <- rpart(next_action ~ . -file_name - event_id - time - weight,
+#                                  data = data[data[train_idx,]$nation == "tw",], control = rpart.control(cp = 0.005), 
+#                                  weights = data$weight)
+# rpart_tk <- rpart(next_action ~ . -file_name - event_id - time - weight,
+#                      data = data, control = rpart.control(cp = 0.005), 
+#                      weights = data$weight)
+# rpart_us <- rpart(next_action ~ . -file_name - event_id - time - weight,
+#                      data = data, control = rpart.control(cp = 0.005), 
+#                      weights = data$weight)
+
+# prp(rpart_model,         # 模型
+#     faclen=0,           # 呈現的變數不要縮寫
+#     fallen.leaves=TRUE, # 讓樹枝以垂直方式呈現
+#     shadow.col="gray",  # 最下面的節點塗上陰影
+#     # number of correct classifications / number of observations in that node
+#     extra=2, cex=0.8)  
 
 ## Inference
 library(Metrics)
 
-round(accuracy(as.factor(data$action.y), 
-               predicted = predict(rpart_model, data, type = "class",)), 4)
-cbind(as.factor(data[1:100,]$action.y), predict(rpart_model, data[1:100,], type = "class"))
+round(accuracy(data[train_idx,]$next_action, 
+               predicted = predict(rpart_model, data[train_idx,], type = "class",)), 4)
+round(accuracy(data[-train_idx,]$next_action, 
+               predicted = predict(rpart_model, data[-train_idx,], type = "class",)), 4)
 
-##### Ranger #####
-library(ranger)
-
-ranger_model <- ranger(next_action ~ . -file_name - event_id - time - weight,
-                       data = data, case.weights = data$weight, importance = "impurity")
-
-ranger_model$prediction.error
-importance(ranger_model)[order(importance(ranger_model), decreasing = T)]
-
-ranger_model$confusion.matrix
-
-ranger_model$forest$split.varIDs[[1]][117]; length(ranger_model$forest$split.varIDs[[1]])
-ranger_model$forest$split.values[[1]][117]; length(ranger_model$forest$split.values[[1]])
-
-
-ranger_model$forest$independent.variable.names[1]
-
-
-
-table(ranger_model$forest$split.varIDs[[1]])
-table(colnames(data[, -c("file_name", "event_id", "time", "next_action")])[ranger_model$forest$split.varIDs[[1]]])
-
-
-sapply(seq(1:500), function(i) max(ranger_model$forest$split.varIDs[[i]]))
-# variabe ID are all the same in every trees
-
-# variables of VV distance: 6:15 -> 5:14
-# variables of VT distance: 16:50 -> 15-49
-# variables of VH distance: 51:100 -> 50-99
-
-split_value_tree_1 <- data.table(varID = ranger_model$forest$split.varIDs[[1]],
-                                 value = ranger_model$forest$split.values[[1]])
-
-# VV distance
-summary(split_value_tree_1[split_value_tree_1$varID > 4 & split_value_tree_1$varID < 15,])
-# VT distance 
-summary(split_value_tree_1[split_value_tree_1$varID > 14 & split_value_tree_1$varID < 50,])
-# VH distance
-summary(split_value_tree_1[split_value_tree_1$varID > 49 & split_value_tree_1$varID < 100,])
+round(accuracy(data[train_idx,]$next_action, 
+               predicted = predict(rpart_model_pruned, data[train_idx,], type = "class",)), 4)
+round(accuracy(data[-train_idx,]$next_action, 
+               predicted = predict(rpart_model_pruned, data[-train_idx,], type = "class",)), 4)
 
 
 ##### randomForest #####
@@ -318,11 +338,11 @@ summary(split_value_tree_1[split_value_tree_1$varID > 49 & split_value_tree_1$va
 
 ##### CTHSMM #####
 
-uav_cthsmm <- cthsmm(rpart_tree = rpart_model, data = data, 
-                    ID_Col = "file_name", stateDuration_Col = "event_id", obsColname = "next_action", aggDivisor = 3600,verbose = T)
-
-sqlState = paste('select ', "file_name", ', ', "action.y", 
-                 ', sum(', "event_id" ,') / ', 3600,
-                 ' as Duration from data group by Agg_ID', sep = '');
-agg_data = sqldf(sqlState)
-data[,"action.y"]
+# uav_cthsmm <- cthsmm(rpart_tree = rpart_model, data = data, 
+#                      ID_Col = "file_name", stateDuration_Col = "event_id", obsColname = "next_action", aggDivisor = 3600,verbose = T)
+# 
+# sqlState = paste('select ', "file_name", ', ', "action.y", 
+#                  ', sum(', "event_id" ,') / ', 3600,
+#                  ' as Duration from data group by Agg_ID', sep = '');
+# agg_data = sqldf(sqlState)
+# data[,"action.y"]
