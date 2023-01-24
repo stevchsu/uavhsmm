@@ -237,23 +237,27 @@ round(prop.table(table(data$next_action)), 3)
 # prop.table(table(data$next_action))
 
 # Calculate case weight by training set
-case_weight <- round(1/round(prop.table(table(data$action)), 3), 2);case_weight
+case_weight <- round(1/round(prop.table(table(data$next_action)), 3), 2);case_weight
 
 data$weight <- 1
 
-data$weight <- ifelse(data$next_action == "replanPath", yes = 13.89, no = data$weight)
-data$weight <- ifelse(data$next_action == "applyAutomation", yes = 66.67, no = data$weight)
-data$weight <- ifelse(data$next_action == "engagePayload", yes = 2.60, no = data$weight)
-data$weight <- ifelse(data$next_action == "watch", yes = 1.89, no = data$weight)
+data$weight <- ifelse(data$next_action == "replanPath", yes = 7.87, no = data$weight)
+data$weight <- ifelse(data$next_action == "applyAutomation", yes = 23.26, no = data$weight)
+data$weight <- ifelse(data$next_action == "engagePayload", yes = 3.02, no = data$weight)
+data$weight <- ifelse(data$next_action == "watch", yes = 2, no = data$weight)
 
 
 # Fit rpart
 rpart_model <- rpart(next_action ~ . -file_name - event_id - time - weight,
-                     data = data, control = rpart.control(cp = 0.01), 
-                     weights = data$weight)
-print(rpart_model)
+                     data = data[train_idx,], control = rpart.control(cp = 0.005), 
+                     weights = data[train_idx,]$weight)
 
 prp(rpart_model, cex=0.6)
+
+printcp(rpart_model)
+pruned_rpart_model <- prune.rpart(rpart_model, cp = 0.0043089)
+prp(pruned_rpart_model, cex=0.6)
+
 
 prp(rpart_model,         # 模型
     faclen=0,           # 呈現的變數不要縮寫
