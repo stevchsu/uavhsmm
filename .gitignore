@@ -1,5 +1,5 @@
-uav_hsmm.Rproj
+*.Rproj
 .DS_Store
 .Rhistory
 .Rproj.user
-
+*.zip
