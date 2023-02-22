@@ -12,16 +12,19 @@ cthsmm_viterbi = function(cthsmm, obsSeq, maxStateTimeSpent = NA ) {
   # Convert character observation sequence into numbers
   obsSeqNum = match(obsSeq, cthsmm$obs );
   
+  # print("obsSeq = "); print(obsSeq)
+  # print("cthsmm$obs = "); print(cthsmm$obs)
   # Length of observation sequences
   lenObsSeq = length(obsSeq);
   
-  print("lenObsSeq = "); print(lenObsSeq)
+  # print("lenObsSeq = "); print(lenObsSeq)
   print("obsSeqNum = "); print(obsSeqNum)
+  print("data.frame(x = obsSeqNum, N = lenObsSeq) = "); print(data.frame(x = obsSeqNum, N = lenObsSeq))
   # Get Viterbi path/state sequence in numbers
   stateSeqNum = mhsmm::predict.hsmmspec(cthsmm$hsmm,
                                         data.frame(x = obsSeqNum, N = lenObsSeq), 
                                         method = "viterbi", M = maxStateTimeSpent)$s;
-  
+  print("end of viterbi")
   # State sequence in character/string: s1, s2, .... Run Length Encoding
   stateSeqRLE = rle(paste('s', stateSeqNum, sep = ''));
   

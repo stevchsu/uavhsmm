@@ -79,6 +79,7 @@ cthsmm_eval = function(cthsmm, test_data, obsColname, ID_Col, stateDuration_Col,
                    ', sum(', stateDuration_Col ,') / ', aggDivisor,
                    ' as Duration from test_data group by Agg_ID', sep = '');
   # Aggregated dataset
+  # print("execute SQL")
   agg_data = sqldf(sqlState);
   
   # Round up duration
@@ -107,29 +108,38 @@ cthsmm_eval = function(cthsmm, test_data, obsColname, ID_Col, stateDuration_Col,
   # Aggregated data by obervations
   agg_data_obs = sqldf(sqlState,stringsAsFactors=F);
   
+  # print("agg_data_obs = "); print(agg_data_obs);
   
-  # print(agg_data);
-  
-  actPred_states = untable(df=agg_data[,c(ID_Col,'State')],num=agg_data[,'Duration']);
+  actPred_states = untable(df=agg_data[c(ID_Col,'State')],num=agg_data$Duration);
   colnames(actPred_states) = c('ID','actState');  
   
+  # print("actPred_states = "); print(actPred_states)
   # Unique IDs
   matches = list();
-  matches$ID = unique(agg_data_obs[,ID_Col]);
-  matches = as.data.frame(matches);
+  matches$ID = unique(agg_data_obs[[ID_Col]]);
+  # matches = as.data.frame(matches);
   
+  # print("matches = "); print(matches)
   obsSeq = NULL;
   predState = NULL;
   
-  for(i in 1:nrow(matches)){
+  for(i in 1:length(matches$ID)){
     tmpObsSeq = NULL;
-    agg_data_obs_subset = subset(agg_data_obs, agg_data_obs$ID == matches[i,'ID']);
     
+    # print(matches$ID[i]); print(agg_data_obs[[ID_Col]])
+    # agg_data_obs_subset = subset(agg_data_obs, agg_data_obs$ID == matches$ID[i]);
+    agg_data_obs_subset = agg_data_obs[agg_data_obs[[ID_Col]] == matches$ID[i],];
+    # print("agg_data_obs_subset = "); print(agg_data_obs_subset)
+    
+    tmpObsSeq <- NULL
     for(j in 1:nrow(agg_data_obs_subset)){
-      tmpObsSeq = c(tmpObsSeq, rep(agg_data_obs_subset[j, 'Location'], 
-                                   agg_data_obs_subset[j, 'obsDuration']));
+      # print("agg_data_obs_subset[[obsColname]][j] = "); print(agg_data_obs_subset[[obsColname]][j])
+      tmpObsSeq = c(tmpObsSeq, as.character(rep(agg_data_obs_subset[[obsColname]][j], 
+                                                agg_data_obs_subset$obsDuration[j])));
+      # print(tmpObsSeq)
     }
     obsSeq = c(obsSeq,tmpObsSeq);
+    # print("tmpObsSeq = "); print(tmpObsSeq)
     predState = c(predState,  cthsmm_viterbi(cthsmm, tmpObsSeq));
     
   }

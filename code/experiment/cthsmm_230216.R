@@ -82,8 +82,8 @@ set.seed(1)
 train_idx <- sample(seq(nrow(data)), size = 0.7 * nrow(data), replace = F)
 test_idx <- setdiff(seq(nrow(data)), train_idx)
 
+round(prop.table(table(data$action.y)), 3)
 round(prop.table(table(data$next_action)), 3)
-# prop.table(table(data$next_action))
 
 # Calculate case weight by training set
 case_weight <- round(1/round(prop.table(table(data[train_idx,]$next_action)), 3), 2);case_weight
@@ -158,24 +158,55 @@ round(lrb_lw_cthsmm$stm, 4)
 round(lrb_lw_cthsmm$om, 4)
 max(lrb_lw_cthsmm$statePDF_7(1:max(lrb_lw_cthsmm$agg_data$Duration))) # max prob in all state = 0.7343513 (state 7)
 
+summary(lrb_lw_cthsmm$statePDF_1(1:10))
+
 ##### plot cthsmm sojourn density #####
-plot(lrb_lw_cthsmm$statePDF_1(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 1", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_2(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 2", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_3(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 3", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_4(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 4", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_5(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 5", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_6(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 6", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
-plot(lrb_lw_cthsmm$statePDF_7(1:max(lrb_lw_cthsmm$agg_data$Duration)), type = "l", 
-     main = "State 7", ylim = c(0, 0.75), xlim = c(0, 40), ylab = "Density", xlab = "Duration, sec")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_1(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 1") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_2(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 2") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_3(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 3") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_4(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 4") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_5(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 5") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_6(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 6") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
+
+ggplot(data = data.frame(x = 1:max(lrb_lw_cthsmm$agg_data$Duration),
+                         InStateProb = lrb_lw_cthsmm$statePDF_7(1:max(lrb_lw_cthsmm$agg_data$Duration)))) +
+  geom_line(mapping = aes(x = x, y = InStateProb)) + xlab("Duration, sec") + ggtitle("State 7") +
+  ylim(c(0, 0.75)) + xlim(c(0, 20)) + theme(text = element_text(size = 18)) + 
+  geom_hline(yintercept = 0) + geom_vline(xintercept = 1, linetype = "dotted")
 ##### end of plot cthsmm sojourn density #####
 
 # saveRDS(lrb_lw_cthsmm, "model/lrb_lw_cthsmm_230217.rds")
+lrb_lw_cthsmm <- readRDS("model/lrb_lw_cthsmm_230217.rds")
 
 cthsmm_eval(cthsmm = lrb_lw_cthsmm, test_data = data, 
             obsColname = "next_action", ID_Col = "file_name", stateDuration_Col = "dur_time", aggDivisor = 1, viterbi_len = 10)
